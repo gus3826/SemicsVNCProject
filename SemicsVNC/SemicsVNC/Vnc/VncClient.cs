@@ -254,7 +254,7 @@ namespace SemicsVNC.Vnc
             lock (this.c.SyncRoot)
             {
                 //SemicsVNC.Vnc.VncClient.
-                ////0705 유저 데이터보내기
+                //// 유저 데이터보내기
                 string myId = UserID;
                 byte[] buff = Encoding.Default.GetBytes(myId);
                 stream.Write(buff, 0, buff.Length);

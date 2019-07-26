@@ -20,6 +20,8 @@ namespace SemicsVNC.Example
         private Button button1;
         private Button button2;
         private Label label1;
+        static StringBuilder postParams;
+        private static string resultPost;
 
 
 
@@ -108,68 +110,65 @@ namespace SemicsVNC.Example
             this.PerformLayout();
 
         }
-
-        private void button1_Click(object sender, EventArgs e)
+        //Post 방식 php연결 함수
+        public static string PhpConnect(string php)
         {
-
-            //php에서 로그인하기위해서 사용하는 코드
-
-            StringBuilder postParams = new StringBuilder();
-            //postParams.Append("id=" + textID.Text);
-            //postParams.Append("&pw=" + textPW.Text);
+            HttpWebRequest wReq;
+            Stream postDataStream;
+            Stream respPostStream;
+            StreamReader readerPost;
+            HttpWebResponse wResp;
 
             Encoding encoding = Encoding.UTF8;
             byte[] result = encoding.GetBytes(postParams.ToString());
 
-            string id = textBox_name.Text;
-            string pw = textBox_pass.Text;
+            wReq = (HttpWebRequest)WebRequest.Create(php);
+            wReq.Method = "POST";
+            wReq.ContentType = "application/x-www-form-urlencoded";
+            wReq.ContentLength = result.Length;
 
-
-
-            // 타겟이 되는 웹페이지 URL
-            string Url = "http://3men.pe.kr/outidtest3.php?userid="+id+"&password="+pw;
-            HttpWebRequest wReqFirst = (HttpWebRequest)WebRequest.Create(Url);
-
-            // HttpWebRequest 오브젝트 설정
-            wReqFirst.Method = "POST";
-            wReqFirst.ContentType = "application/x-www-form-urlencoded";
-            wReqFirst.ContentLength = result.Length;
-
-            Stream postDataStream = wReqFirst.GetRequestStream();
+            postDataStream = wReq.GetRequestStream();
             postDataStream.Write(result, 0, result.Length);
             postDataStream.Close();
 
-            HttpWebResponse wRespFirst = (HttpWebResponse)wReqFirst.GetResponse();
+            wResp = (HttpWebResponse)wReq.GetResponse();
+            respPostStream = wResp.GetResponseStream();
+            readerPost = new StreamReader(respPostStream, Encoding.Default);
 
-            // Response의 결과를 스트림을 생성합니다.
-            Stream respPostStream = wRespFirst.GetResponseStream();
-            StreamReader readerPost = new StreamReader(respPostStream, Encoding.Default);
+            return readerPost.ReadToEnd();
+        }
 
-            // 생성한 스트림으로부터 string으로 변환합니다.
-            string resultPost = readerPost.ReadToEnd();
+        private void button1_Click(object sender, EventArgs e)
+        {
+
+            string id = textBox_name.Text; //입력한 아이디
+            string pw = textBox_pass.Text; //입력한 비밀번호
+        
+            //post 방식을 이용하여 웹DB에서 아이디,비밀번호 확인
+            try
+            {
+                postParams = new StringBuilder();
+                postParams.Append("userid=" + id);
+                postParams.Append("&password=" + pw);
+                resultPost = PhpConnect("http://3men.pe.kr/outidtest4.php");
+
+            }
+            catch (Exception execep)
+            {
+                Console.WriteLine("예외발생 : " + execep.Message);
+            }
+            //MessageBox.Show(resultPost);
             int resul_leng =resultPost.Length;
-
-
 
 
             //로그인(아이디 ,비밀번호 검사)
             if (resul_leng>=20)
             {
-                //문자열 자르기 코드 주석
-                //string[] spl_result = resultPost.Split(new char[] { ':' });
-                //MessageBox.Show(resultPost);
                 this.Hide();
                 MainForm newForm = new MainForm(textBox_name.Text);
-                    MessageBox.Show("Semics 원격제어 프로그램에 오신것을 환영합니다.");
-                    newForm.ShowDialog();
-                 
-
+                MessageBox.Show("Semics 원격제어 프로그램에 오신것을 환영합니다.");
+                newForm.ShowDialog();
                 this.Close();
-                //   Application.EnableVisualStyles();
-                //   Application.Run(new MainForm());
-
-
-
             }
             else
             {

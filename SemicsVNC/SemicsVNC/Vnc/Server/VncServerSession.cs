@@ -42,6 +42,10 @@ namespace SemicsVNC.Vnc.Server
     /// </summary>
     public class VncServerSession : IVncServerSession
     {
+        public string ip;
+        public string id;
+        public System.Timers.Timer timer;
+
         private ILog logger;
         private IVncPasswordChallenge passwordChallenge;
         private VncStream c = new VncStream();
@@ -60,12 +64,15 @@ namespace SemicsVNC.Vnc.Server
         private object specialSync = new object();
         private Thread threadMain;
         private bool securityNegotiated = false;
+
+
 #if DEFLATESTREAM_FLUSH_WORKS
         MemoryStream _zlibMemoryStream;
         DeflateStream _zlibDeflater;
 #endif
 
         /// <summary>
+        /// <see cref = "VncServerSession" /> 클래스의 새 인스턴스를 초기화합니다.
         /// Initializes a new instance of the <see cref="VncServerSession"/> class.
         /// </summary>
         public VncServerSession()
@@ -74,6 +81,7 @@ namespace SemicsVNC.Vnc.Server
         }
 
         /// <summary>
+        /// <see cref = "VncServerSession" /> 클래스의 새 인스턴스를 초기화합니다.
         /// Initializes a new instance of the <see cref="VncServerSession"/> class.
         /// </summary>
         /// <param name="passwordChallenge">
@@ -95,33 +103,47 @@ namespace SemicsVNC.Vnc.Server
         }
 
         /// <summary>
+        /// VNC 클라이언트가 암호를 제공 할 때 발생합니다.
+        /// 암호를 수락하거나 거부하여이 이벤트에 응답하십시오.
         /// Occurs when the VNC client provides a password.
         /// Respond to this event by accepting or rejecting the password.
         /// </summary>
         public event EventHandler<PasswordProvidedEventArgs> PasswordProvided;
 
         /// <summary>
+        /// 클라이언트가 데스크톱에 대한 액세스를 요청할 때 발생합니다.
+        /// 독점 또는 공유 액세스를 요청할 수 있습니다.이 이벤트는 해당 정보를 중계합니다.
         /// Occurs when the client requests access to the desktop.
         /// It may request exclusive or shared access -- this event will relay that information.
         /// </summary>
         public event EventHandler<CreatingDesktopEventArgs> CreatingDesktop;
 
+
         /// <summary>
+        /// 로그데이터 추가 핸들러
+        /// </summary>
+        public event EventHandler LogData;
+
+        /// <summary>
+        /// VNC 클라이언트가 서버에 성공적으로 연결되었을 때 발생합니다.
         /// Occurs when the VNC client has successfully connected to the server.
         /// </summary>
         public event EventHandler Connected;
 
         /// <summary>
+        /// VNC 클라이언트가 서버에 연결하지 못했을 때 발생합니다.
         /// Occurs when the VNC client has failed to connect to the server.
         /// </summary>
         public event EventHandler ConnectionFailed;
 
         /// <summary>
+        /// VNC 클라이언트의 연결이 끊어지면 발생합니다
         /// Occurs when the VNC client is disconnected.
         /// </summary>
         public event EventHandler Closed;
 
         /// <summary>
+        /// 프레임 버퍼를 캡처해야 할 때 발생합니다.
         /// Occurs when the framebuffer needs to be captured.
         /// If you have not called <see cref="VncServerSession.SetFramebufferSource"/>, alter the framebuffer
         /// in response to this event.
@@ -131,6 +153,7 @@ namespace SemicsVNC.Vnc.Server
         public event EventHandler FramebufferCapturing;
 
         /// <summary>
+        /// 프레임 버퍼를 업데이트해야하는 경우에 발생합니다.
         /// Occurs when the framebuffer needs to be updated.
         /// If you do not set <see cref="FramebufferUpdatingEventArgs.Handled"/>,
         /// <see cref="VncServerSession"/> will determine the updated regions itself.
@@ -140,22 +163,27 @@ namespace SemicsVNC.Vnc.Server
         public event EventHandler<FramebufferUpdatingEventArgs> FramebufferUpdating;
 
         /// <summary>
+        /// 키를 누르거나 껐을 때 발생합니다.
         /// Occurs when a key has been pressed or released.
         /// </summary>
         public event EventHandler<KeyChangedEventArgs> KeyChanged;
 
         /// <summary>
+        /// 마우스 움직임, 버튼 클릭 등으로 발생합니다.
         /// Occurs on a mouse movement, button click, etc.
         /// </summary>
         public event EventHandler<PointerChangedEventArgs> PointerChanged;
 
         /// <summary>
+        /// 원격 클라이언트에서 클립 보드가 변경되면 발생합니다.
+        /// 클립 보드 통합을 구현하는 경우이 도구를 사용하여 로컬 클립 보드를 설정하십시오.
         /// Occurs when the clipboard changes on the remote client.
         /// If you are implementing clipboard integration, use this to set the local clipboard.
         /// </summary>
         public event EventHandler<RemoteClipboardChangedEventArgs> RemoteClipboardChanged;
 
         /// <summary>
+        /// 클라이언트의 프로토콜 버전을 가져옵니다.
         /// Gets the protocol version of the client.
         /// </summary>
         public Version ClientVersion
@@ -164,6 +192,7 @@ namespace SemicsVNC.Vnc.Server
         }
 
         /// <summary>
+        /// VNC 세션의 프레임 버퍼를 가져옵니다.
         /// Gets the framebuffer for the VNC session.
         /// </summary>
         public VncFramebuffer Framebuffer
@@ -180,6 +209,7 @@ namespace SemicsVNC.Vnc.Server
         }
 
         /// <summary>
+        /// 클라이언트를 인증 할 때 사용할<see cref = "IVncPasswordChallenge"/> 를 가져 오거나 설정합니다.
         /// Gets or sets the <see cref="IVncPasswordChallenge"/> to use when authenticating clients.
         /// </summary>
         public IVncPasswordChallenge PasswordChallenge
@@ -201,6 +231,7 @@ namespace SemicsVNC.Vnc.Server
         }
 
         /// <summary>
+        /// 로깅 할 때 사용할 <see cref = "ILog"/> 로거를 가져 오거나 설정합니다.
         /// Gets or sets the <see cref="ILog"/> logger to use when logging.
         /// </summary>
         public ILog Logger
@@ -210,6 +241,7 @@ namespace SemicsVNC.Vnc.Server
         }
 
         /// <summary>
+        /// 프레임 버퍼 갱신을 수행하기 전에 사용해야하는 잠금을 가져옵니다.
         /// Gets a lock which should be used before performing any framebuffer updates.
         /// </summary>
         public object FramebufferUpdateRequestLock
@@ -218,6 +250,7 @@ namespace SemicsVNC.Vnc.Server
         }
 
         /// <summary>
+        /// 서버가 클라이언트에 연결되어 있는지 여부를 나타내는 값을 가져옵니다.
         /// Gets a value indicating whether the server is connected to a client.
         /// </summary>
         /// <value>
@@ -230,6 +263,7 @@ namespace SemicsVNC.Vnc.Server
         }
 
         /// <summary>
+        /// 프레임 버퍼 업데이트를 보낼 최대 속도(초당 프레임 수)를 가져 오거나 설정합니다.
         /// Gets or sets the max rate to send framebuffer updates at, in frames per second.
         /// </summary>
         /// <remarks>
@@ -256,6 +290,8 @@ namespace SemicsVNC.Vnc.Server
         }
 
         /// <summary>
+        /// 사용자 별 데이터를 가져 오거나 설정합니다.
+        /// 여기에 원하는 것을 보관하십시오.
         /// Gets or sets user-specific data.
         /// </summary>
         /// <remarks>
@@ -268,6 +304,7 @@ namespace SemicsVNC.Vnc.Server
         }
 
         /// <summary>
+        /// 이 <see cref = "VncServerSession"/>에 사용할 새 <see cref = "IVncFramebufferCache"/>를 초기화하는 함수를 가져 오거나 설정합니다.
         /// Gets or sets a function which initializes a new <see cref="IVncFramebufferCache"/> for use by
         /// this <see cref="VncServerSession"/>.
         /// </summary>
@@ -275,6 +312,7 @@ namespace SemicsVNC.Vnc.Server
         { get; set; } = (framebuffer, log) => new VncFramebufferCache(framebuffer, log);
 
         /// <summary>
+        /// 원격 클라이언트와의 연결을 닫습니다.
         /// Closes the connection with the remote client.
         /// </summary>
         public void Close()
@@ -288,6 +326,7 @@ namespace SemicsVNC.Vnc.Server
         }
 
         /// <summary>
+        /// VNC 클라이언트와 세션을 시작합니다.
         /// Starts a session with a VNC client.
         /// </summary>
         /// <param name="stream">The stream containing the connection.</param>
@@ -298,7 +337,7 @@ namespace SemicsVNC.Vnc.Server
 
             lock (this.c.SyncRoot)
             {
-                // 0705 데이터받기
+                //  데이터받기
                 int length;
                 string data = null;
                 byte[] bytes = new byte[256];
@@ -322,6 +361,7 @@ namespace SemicsVNC.Vnc.Server
         }
 
         /// <summary>
+        /// 클라이언트에게 소리를 들려 줄 것을 지시합니다.
         /// Tells the client to play a bell sound.
         /// </summary>
         public void Bell()
@@ -338,6 +378,8 @@ namespace SemicsVNC.Vnc.Server
         }
 
         /// <summary>
+        /// 로컬 클립 보드가 변경된 것을 클라이언트에 통지합니다.
+        /// 클립 보드 통합을 구현하는 경우이 도구를 사용하여 원격 클립 보드를 설정하십시오.
         /// Notifies the client that the local clipboard has changed.
         /// If you are implementing clipboard integration, use this to set the remote clipboard.
         /// </summary>
@@ -360,6 +402,7 @@ namespace SemicsVNC.Vnc.Server
         }
 
         /// <summary>
+        /// 프레임 버퍼 소스를 설정합니다.
         /// Sets the framebuffer source.
         /// </summary>
         /// <param name="source">The framebuffer source, or <see langword="null"/> if you intend to handle the framebuffer manually.</param>
@@ -369,6 +412,7 @@ namespace SemicsVNC.Vnc.Server
         }
 
         /// <summary>
+        /// 최근 변경 사항을 확인하기 위해 프레임 버퍼 업데이트 스레드에 알립니다.
         /// Notifies the framebuffer update thread to check for recent changes.
         /// </summary>
         public void FramebufferChanged()
@@ -383,6 +427,7 @@ namespace SemicsVNC.Vnc.Server
         }
 
         /// <summary>
+        /// 다른 것에 카피되고있는 프레임 버퍼의 1 개의 영역에 대응하는 갱신을 큐에 넣습니다.
         /// Queues an update corresponding to one region of the framebuffer being copied to another.
         /// </summary>
         /// <param name="target">
@@ -530,6 +575,7 @@ namespace SemicsVNC.Vnc.Server
         }
 
         /// <summary>
+        /// <see cref = "PasswordProvided" /> 이벤트를 발생시킵니다.
         /// Raises the <see cref="PasswordProvided"/> event.
         /// </summary>
         /// <param name="e">
@@ -545,6 +591,7 @@ namespace SemicsVNC.Vnc.Server
         }
 
         /// <summary>
+        /// <see cref = "CreatingDesktop" /> 이벤트를 발생시킵니다.
         /// Raises the <see cref="CreatingDesktop"/> event.
         /// </summary>
         /// <param name="e">
@@ -559,7 +606,22 @@ namespace SemicsVNC.Vnc.Server
             }
         }
 
+
         /// <summary>
+        /// <see cref = "LogData"/> 이벤트를 발생시킵니다.
+        /// Raises the <see cref="LogData"/> event.
+        /// </summary>
+        protected virtual void OnLogData()      //로그데이터 추가
+        {
+            var ev = this.LogData;
+            if (ev != null)
+            {
+                ev(this, EventArgs.Empty);
+            }
+        }
+
+        /// <summary>
+        /// <see cref = "Connected" /> 이벤트를 발생시킵니다.
         /// Raises the <see cref="Connected"/> event.
         /// </summary>
         protected virtual void OnConnected()
@@ -572,6 +634,7 @@ namespace SemicsVNC.Vnc.Server
         }
 
         /// <summary>
+        /// <see cref = "ConnectionFailed"/> 이벤트를 발생시킵니다.
         /// Raises the <see cref="ConnectionFailed"/> event.
         /// </summary>
         protected virtual void OnConnectionFailed()
@@ -584,6 +647,7 @@ namespace SemicsVNC.Vnc.Server
         }
 
         /// <summary>
+        /// <see cref = "Closed" /> 이벤트를 발생시킵니다.
         /// Raises the <see cref="Closed"/> event.
         /// </summary>
         protected virtual void OnClosed()
@@ -596,6 +660,7 @@ namespace SemicsVNC.Vnc.Server
         }
 
         /// <summary>
+        /// <see cref = "FramebufferCapturing" /> 이벤트를 발생시킵니다.
         /// Raises the <see cref="FramebufferCapturing"/> event.
         /// </summary>
         protected virtual void OnFramebufferCapturing()
@@ -608,6 +673,7 @@ namespace SemicsVNC.Vnc.Server
         }
 
         /// <summary>
+        /// <see cref = "FramebufferUpdating" /> 이벤트를 발생시킵니다.
         /// Raises the <see cref="FramebufferUpdating"/> event.
         /// </summary>
         /// <param name="e">
@@ -623,6 +689,7 @@ namespace SemicsVNC.Vnc.Server
         }
 
         /// <summary>
+        /// <see cref = "KeyChanged"/> 이벤트를 발생시킵니다.
         /// Raises the <see cref="KeyChanged"/> event.
         /// </summary>
         /// <param name="e">
@@ -638,6 +705,7 @@ namespace SemicsVNC.Vnc.Server
         }
 
         /// <summary>
+        /// <see cref = "PointerChanged" /> 이벤트를 발생시킵니다.
         /// Raises the <see cref="PointerChanged"/> event.
         /// </summary>
         /// <param name="e">
@@ -653,6 +721,7 @@ namespace SemicsVNC.Vnc.Server
         }
 
         /// <summary>
+        /// <see cref = "RemoteClipboardChanged"/> 이벤트를 발생시킵니다.
         /// Raises the <see cref="RemoteClipboardChanged"/> event.
         /// </summary>
         /// <param name="e">
@@ -685,6 +754,7 @@ namespace SemicsVNC.Vnc.Server
                 this.IsConnected = true;
                 this.logger?.Log(LogLevel.Info, () => "The client has connected successfully");
 
+                this.OnLogData(); //추가한 함수
                 this.OnConnected();
 
                 while (true)
